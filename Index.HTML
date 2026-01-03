@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trợ Lý Tài Chính Của Tôi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* 1. Định nghĩa bộ màu Sáng (Mặc định) */
+        :root {
+            --bg-color: #f8f9fa;
+            --text-color: #212529;
+            --card-bg: #ffffff;
+            --input-bg: #ffffff;
+            --input-border: #ced4da;
+            --list-item-bg: #ffffff;
+            --placeholder-color: #6c757d; 
+            --muted-color: #6c757d; /* Màu cho chữ mờ */
+        }
+
+        /* 2. Định nghĩa bộ màu Tối (Khi kích hoạt) */
+        [data-theme="dark"] {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --card-bg: #1e1e1e;
+            --input-bg: #2d2d2d;
+            --input-border: #444;
+            --list-item-bg: #1e1e1e;
+            --placeholder-color: #aaa; 
+            --muted-color: #adb5bd; /* Sửa lỗi: Chữ mờ sáng hơn để dễ đọc trên nền tối */
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .card {
+            background-color: var(--card-bg);
+            color: var(--text-color);
+        }
+        .list-group-item {
+            background-color: var(--list-item-bg);
+            color: var(--text-color);
+            border-color: var(--input-border);
+        }
+        .form-control, .form-select {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border-color: var(--input-border);
+        }
+        .form-control:focus, .form-select:focus {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+        }
+        .form-control::placeholder {
+            color: var(--placeholder-color);
+            opacity: 1;
+        }
+        
+        /* Áp dụng biến màu muted mới sửa */
+        .text-muted {
+            color: var(--muted-color) !important;
+        }
+
+        .total-box { background: #0d6efd; color: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; }
+
+        .theme-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            font-size: 24px;
+            z-index: 1000;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0;
+        }
+        
+        [data-theme="dark"] ::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container py-4" style="max-width: 600px;">
+    <button id="themeToggle" class="btn btn-warning theme-btn">🌙</button>
+
+    <div class="text-center total-box">
+        <h3>Tổng Chi Tiêu</h3>
+        <h1 id="totalAmount">0 ₫</h1>
+    </div>
+
+    <div class="card p-3 mb-4">
+        <h5 class="mb-3">➕ Thêm khoản chi mới</h5>
+        <form id="expenseForm">
+            <div class="mb-3">
+                <label class="form-label small text-muted">Ngày chi tiêu</label>
+                <input type="date" class="form-control" id="date" required>
+            </div>
+            
+            <div class="mb-3">
+                <input type="text" class="form-control" id="desc" placeholder="Mua gì đó? (Vd: Cà phê)" required>
+            </div>
+            <div class="mb-3">
+                <input type="number" class="form-control" id="amount" placeholder="Hết bao nhiêu? (Vd: 30000)" required>
+            </div>
+            <div class="mb-3">
+                <select class="form-select" id="category">
+  			 <option value="AEON">🛍️ AEON</option>
+   			 <option value="Shoppee">📦 Shoppee</option>
+   			 <option value="Shopping">👗 Shopping (Khác)</option>
+  			 <option value="Ăn uống">🍔 Ăn uống</option>
+   			 <option value="Unknown Fee">❓ Unknown Fee</option>
+		</select>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Lưu lại</button>
+        </form>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="m-0">📝 Lịch sử chi tiêu</h5>
+        <select class="form-select form-select-sm w-auto" id="filterCategory">
+            <option value="all">Tất cả</option>
+            <option value="AEON">🛍️ AEON</option>
+            <option value="Shoppee">📦 Shoppee</option>
+            <option value="Shopping">👗 Shopping (Khác)</option>
+            <option value="Ăn uống">🍔 Ăn uống</option>
+            <option value="Unknown Fee">❓ Unknown Fee</option>
+        </select>
+    </div>
+
+    <ul class="list-group" id="expenseList">
+        </ul>
+</div>
+
+<script>
+    const form = document.getElementById('expenseForm');
+    const list = document.getElementById('expenseList');
+    const totalDisplay = document.getElementById('totalAmount');
+    const dateInput = document.getElementById('date');
+    const filterSelect = document.getElementById('filterCategory'); // Lấy ô lọc
+
+    dateInput.valueAsDate = new Date();
+
+    let expenses = JSON.parse(localStorage.getItem('myExpenses')) || [];
+
+    function formatDate(dateString) {
+        if (!dateString) return '';
+        const [year, month, day] = dateString.split('-');
+        return `${day}/${month}/${year}`;
+    }
+
+    function renderExpenses() {
+        list.innerHTML = '';
+        let total = 0;
+        
+        // Sắp xếp
+        expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        // 1. Tính tổng tiền (Luôn tính trên TẤT CẢ, hay chỉ tính trên cái đang lọc? 
+        // Thường thì user muốn xem tổng của cái đang lọc. Tôi sẽ tính tổng dựa trên bộ lọc nhé)
+        
+        const currentFilter = filterSelect.value;
+        
+        // Lọc danh sách trước khi hiển thị
+        const filteredExpenses = expenses.filter(item => {
+            if (currentFilter === 'all') return true;
+            return item.category === currentFilter;
+        });
+
+        filteredExpenses.forEach((item) => {
+            total += parseInt(item.amount);
+            const li = document.createElement('li');
+            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            li.innerHTML = `
+                <div>
+                    <strong>${item.desc}</strong> <br>
+                    <small class="text-muted">
+                        📅 ${formatDate(item.date)} | ${item.category}
+                    </small>
+                </div>
+                <div>
+                    <span class="badge bg-secondary rounded-pill">${parseInt(item.amount).toLocaleString()} ₫</span>
+                    <button class="btn btn-sm btn-outline-danger ms-2" onclick="deleteItem(${item.id})">×</button>
+                </div>
+            `;
+            list.appendChild(li);
+        });
+        
+        // Hiển thị tổng tiền của danh sách đang xem
+        totalDisplay.innerText = total.toLocaleString() + ' ₫';
+    }
+
+    // Sự kiện khi thay đổi bộ lọc
+    filterSelect.addEventListener('change', () => {
+        renderExpenses();
+    });
+
+// --- ⚠️ GIỮ NGUYÊN LINK CỦA BẠN ---
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzuLpPzdOXpsS7PlcKHjIgnFBRWZZBdJS8s119lgkKUBT_q-GroZt8SQVGGENukEeceQw/exec"; 
+
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const date = document.getElementById('date').value;
+        const desc = document.getElementById('desc').value;
+        const inputAmount = document.getElementById('amount').value; // Số nhập vào (vd: 49)
+        const category = document.getElementById('category').value;
+        
+        // --- LOGIC MỚI: Nhân 1000 ngay tại đây ---
+        const finalAmount = inputAmount * 1000; 
+
+        // Hiệu ứng nút bấm
+        const btn = form.querySelector('button[type="submit"]');
+        const originalText = btn.innerText;
+        btn.innerText = "⏳ Đang lưu...";
+        btn.disabled = true;
+
+        // Gửi dữ liệu ĐÃ NHÂN lên Google Sheet
+        fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date, desc, amount: finalAmount, category }) // Gửi số 49000
+        })
+        .then(() => {
+            // Lưu vào giao diện số 49000
+            expenses.push({ id: Date.now(), date, desc, amount: finalAmount, category });
+            localStorage.setItem('myExpenses', JSON.stringify(expenses));
+            renderExpenses();
+            
+            form.reset();
+            dateInput.valueAsDate = new Date();
+            
+            alert("✅ Đã lưu: " + parseInt(finalAmount).toLocaleString() + " đ");
+        })
+        .catch(error => {
+            alert("❌ Lỗi kết nối: " + error);
+        })
+        .finally(() => {
+            btn.innerText = originalText;
+            btn.disabled = false;
+        });
+    });
+
+    // Hàm xóa item dựa trên ID (An toàn hơn xóa theo index)
+    window.deleteItem = (id) => {
+        expenses = expenses.filter(item => item.id !== id);
+        localStorage.setItem('myExpenses', JSON.stringify(expenses));
+        renderExpenses();
+    };
+
+    // --- LOGIC GIAO DIỆN ---
+    const themeBtn = document.getElementById('themeToggle');
+    const html = document.documentElement;
+    const savedTheme = localStorage.getItem('theme');
+    
+    if (savedTheme === 'dark') {
+        html.setAttribute('data-theme', 'dark');
+        themeBtn.innerText = '☀️';
+        themeBtn.classList.replace('btn-warning', 'btn-light');
+    }
+
+    themeBtn.addEventListener('click', () => {
+        if (html.getAttribute('data-theme') === 'dark') {
+            html.removeAttribute('data-theme');
+            localStorage.setItem('theme', 'light');
+            themeBtn.innerText = '🌙';
+            themeBtn.classList.replace('btn-light', 'btn-warning');
+        } else {
+            html.setAttribute('data-theme', 'dark');
+            localStorage.setItem('theme', 'dark');
+            themeBtn.innerText = '☀️';
+            themeBtn.classList.replace('btn-warning', 'btn-light');
+        }
+    });
+
+    renderExpenses();
+</script>
+
+</body>
+</html>
