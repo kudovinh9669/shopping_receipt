@@ -282,8 +282,36 @@
     });
 
     renderExpenses();
+	// --- ĐOẠN CODE MỚI: TẢI DỮ LIỆU TỪ SHEET ---
+    function fetchExpensesFromSheet() {
+        // Thêm tham số ?type=finance vào URL
+        fetch(SCRIPT_URL + "?type=finance") 
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.length > 0) {
+                    // Cập nhật dữ liệu mới nhất
+                    expenses = data;
+                    // Sắp xếp lại: Mới nhất lên đầu
+                    expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+                    
+                    // Lưu vào LocalStorage để lần sau mở nhanh hơn
+                    localStorage.setItem('myExpenses', JSON.stringify(expenses));
+                    
+                    renderExpenses(); // Vẽ lại giao diện
+                    
+                    // Cập nhật lại tổng tiền hiển thị
+                    let total = expenses.reduce((sum, item) => sum + parseInt(item.amount || 0), 0);
+                    document.getElementById('totalAmount').innerText = total.toLocaleString() + ' ₫';
+                }
+            })
+            .catch(err => console.log("Không tải được dữ liệu cũ:", err));
+    }
+
+    // Gọi hàm này ngay khi mở trang
+    fetchExpensesFromSheet();
 </script>
 
 </body>
 
 </html>
+
