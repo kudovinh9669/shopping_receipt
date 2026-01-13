@@ -283,29 +283,25 @@
 
     renderExpenses();
 	// --- ĐOẠN CODE MỚI: TẢI DỮ LIỆU TỪ SHEET ---
-    function fetchExpensesFromSheet() {
-        // Thêm tham số ?type=finance vào URL
+	function fetchExpensesFromSheet() {
         fetch(SCRIPT_URL + "?type=finance") 
             .then(response => response.json())
             .then(data => {
                 if (data && data.length > 0) {
-                    // Cập nhật dữ liệu mới nhất
-                    expenses = data;
-                    // Sắp xếp lại: Mới nhất lên đầu
+                    // --- BỘ LỌC PHỤ: Lọc bỏ những dòng lỗi NaN hoặc không có ngày ---
+                    expenses = data.filter(item => item.amount && !isNaN(item.amount) && item.date !== '1970-01-01');
+                    
                     expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
-                    
-                    // Lưu vào LocalStorage để lần sau mở nhanh hơn
                     localStorage.setItem('myExpenses', JSON.stringify(expenses));
+                    renderExpenses();
                     
-                    renderExpenses(); // Vẽ lại giao diện
-                    
-                    // Cập nhật lại tổng tiền hiển thị
+                    // Tính lại tổng tiền
                     let total = expenses.reduce((sum, item) => sum + parseInt(item.amount || 0), 0);
                     document.getElementById('totalAmount').innerText = total.toLocaleString() + ' ₫';
                 }
             })
-            .catch(err => console.log("Không tải được dữ liệu cũ:", err));
-    }
+            .catch(err => console.log("Lỗi tải data:", err));
+   	 }
 
     // Gọi hàm này ngay khi mở trang
     fetchExpensesFromSheet();
@@ -314,4 +310,5 @@
 </body>
 
 </html>
+
 
